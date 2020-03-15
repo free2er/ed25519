@@ -56,15 +56,29 @@ class Key
     }
 
     /**
-     * Загружает ключ OpenSSL
+     * Загружает ключ из файла
      *
-     * @param string $pemKey
+     * @param string $file
      *
      * @return static|null
      */
-    public static function load(string $pemKey): ?self
+    public static function loadFromFile(string $file): ?self
     {
-        if (!preg_match(static::PEM, $pemKey, $match)) {
+        $key = is_file($file) && is_readable($file) ? file_get_contents($file) : null;
+
+        return $key ? static::load($key) : null;
+    }
+
+    /**
+     * Загружает ключ
+     *
+     * @param string $key
+     *
+     * @return static|null
+     */
+    public static function load(string $key): ?self
+    {
+        if (!preg_match(static::PEM, $key, $match)) {
             return null;
         }
 

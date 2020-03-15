@@ -49,11 +49,11 @@ class KeyTest extends TestCase
     }
 
     /**
-     * Проверяет состав ключа
+     * Проверяет создание ключа
      *
      * @throws Throwable
      */
-    public function testKey(): void
+    public function testGenerate(): void
     {
         $privateKey = Key::generate();
         $this->assertNotEmpty($privateKey->getPrivateKey());
@@ -64,23 +64,31 @@ class KeyTest extends TestCase
         $this->assertNotEmpty($publicKey->getPublicKey());
         $this->assertEquals($privateKey->getPublicKey(), $publicKey->getPublicKey());
 
-        $fromPrivate = $this->extractOpenSslPublicKeyFromPrivateKey($privateKey);
+        $fromPrivate = $this->extractPublicKeyFromPrivateKey($privateKey);
         $this->assertNotEmpty($fromPrivate);
 
-        $fromPublic = $this->extractOpenSslPublicKeyFromPublicKey($publicKey);
+        $fromPublic = $this->extractPublicKeyFromPublicKey($publicKey);
         $this->assertEquals($fromPublic, $publicKey->toPem());
         $this->assertEquals($fromPrivate, $fromPublic);
     }
 
     /**
-     * Проверяет разбор закрытого ключа
+     * Проверяет загрузку ключа из файла
+     */
+    public function testLoadFromFile(): void
+    {
+        $key = Key::loadFromFile(__DIR__ . '/keys/private.key');
+        $this->assertNotEmpty($key);
+    }
+
+    /**
+     * Проверяет загрузку закрытого ключа
      *
      * @throws Throwable
      */
-    public function testPrivateKeyPem(): void
+    public function testLoadPrivateKey(): void
     {
         $key = Key::load($this->privateKey);
-
         $this->assertNotEmpty($key->getPrivateKey());
         $this->assertNotEmpty($key->getPublicKey());
         $this->assertEquals($this->privateKey, $key->toPem());
@@ -88,14 +96,13 @@ class KeyTest extends TestCase
     }
 
     /**
-     * Проверяет разбор открытого ключа
+     * Проверяет загрузку открытого ключа
      *
      * @throws Throwable
      */
-    public function testPublicKeyPem(): void
+    public function testLoadPublicKey(): void
     {
         $key = Key::load($this->publicKey);
-
         $this->assertNull($key->getPrivateKey());
         $this->assertNotEmpty($key->getPublicKey());
         $this->assertEquals($this->publicKey, $key->toPem());
@@ -111,7 +118,7 @@ class KeyTest extends TestCase
      *
      * @throws Throwable
      */
-    private function extractOpenSslPublicKeyFromPrivateKey(Key $key): string
+    private function extractPublicKeyFromPrivateKey(Key $key): string
     {
         $openssl = openssl_pkey_get_private($key->toPem());
         $this->assertNotEmpty($openssl);
@@ -131,7 +138,7 @@ class KeyTest extends TestCase
      *
      * @throws Throwable
      */
-    private function extractOpenSslPublicKeyFromPublicKey(Key $key): string
+    private function extractPublicKeyFromPublicKey(Key $key): string
     {
         $openssl = openssl_pkey_get_public($key->toPem());
         $this->assertNotEmpty($openssl);
