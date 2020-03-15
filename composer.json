@@ -1,0 +1,40 @@
+{
+    "name": "free2er/ed25519",
+    "description": "Ed25519 key tools",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Max Pryakhin",
+            "email": "m.pryakhin@gmail.com"
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "Free2er\\Ed25519\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Free2er\\Ed25519\\": "tests/"
+        }
+    },
+    "require": {
+        "php": "^7.3",
+        "ext-gmp": "*",
+        "ext-sodium": "*",
+        "fgrosse/phpasn1": "^2.1"
+    },
+    "require-dev": {
+        "ext-openssl": "*",
+        "free2er/coding-standard": "^1.1",
+        "phpunit/phpunit": "^8.5"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "scripts": {
+        "lint": "vendor/bin/phpcs",
+        "test": "vendor/bin/phpunit"
+    }
+}
