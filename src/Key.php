@@ -47,16 +47,10 @@ class Key
      * Формирует закрытый ключ
      *
      * @return static
-     *
-     * @throws KeyException
      */
     public static function generate(): self
     {
-        try {
-            return static::privateKeyFromKeyPair(sodium_crypto_sign_keypair());
-        } catch (Throwable $exception) {
-            throw new KeyException('Unable to generate sodium key', $exception);
-        }
+        return static::privateKeyFromKeyPair(sodium_crypto_sign_keypair());
     }
 
     /**
@@ -70,11 +64,13 @@ class Key
      */
     public static function createFromKeyFile(string $file): self
     {
-        if ($key = file_get_contents($file)) {
-            return static::createFromKey($key);
+        try {
+            $key = file_get_contents($file);
+        } catch (Throwable $exception) {
+            throw new KeyException(sprintf('Unable to load the key from file "%s"', $file), $exception);
         }
 
-        throw new KeyException(sprintf('Unable to load the key from file "%s"', $file));
+        return static::createFromKey($key);
     }
 
     /**

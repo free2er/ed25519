@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Free2er\Ed25519;
 
+use Free2er\Ed25519\Exception\KeyException;
 use PHPUnit\Framework\TestCase;
-use Throwable;
 
 /**
  * Тест ключа
@@ -50,8 +50,6 @@ class KeyTest extends TestCase
 
     /**
      * Проверяет формирование закрытого ключа
-     *
-     * @throws Throwable
      */
     public function testGeneratePrivateKey(): void
     {
@@ -75,18 +73,49 @@ class KeyTest extends TestCase
     /**
      * Проверяет создание ключа из файла
      */
-    public function testLoadFromFile(): void
+    public function testCreateFromFile(): void
     {
         $key = Key::createFromKeyFile(__DIR__ . '/keys/private.key');
         $this->assertNotEmpty($key);
     }
 
     /**
-     * Проверяет создание закрытого ключа
-     *
-     * @throws Throwable
+     * Проверяет создание ключа из пустого файла
      */
-    public function testLoadPrivateKey(): void
+    public function testCreateFromEmptyFile(): void
+    {
+        $this->expectException(KeyException::class);
+        $this->expectExceptionMessage('Unsupported key type');
+
+        Key::createFromKeyFile(__DIR__ . '/keys/empty.key');
+    }
+
+    /**
+     * Проверяет создание ключа из файла X25519
+     */
+    public function testCreateFromX25519File(): void
+    {
+        $this->expectException(KeyException::class);
+        $this->expectExceptionMessage('Unsupported key type');
+
+        Key::createFromKeyFile(__DIR__ . '/keys/x25519.key');
+    }
+
+    /**
+     * Проверяет создание ключа из некорректного файла
+     */
+    public function testCreateFromInvalidFile(): void
+    {
+        $this->expectException(KeyException::class);
+        $this->expectExceptionMessage('Unable to load the key from file "/invalid/file.key"');
+
+        Key::createFromKeyFile('/invalid/file.key');
+    }
+
+    /**
+     * Проверяет создание закрытого ключа
+     */
+    public function testCreatePrivateKey(): void
     {
         $key = Key::createFromKey($this->privateKey);
         $this->assertNotEmpty($key->getPrivateKey());
@@ -97,10 +126,8 @@ class KeyTest extends TestCase
 
     /**
      * Проверяет создание открытого ключа
-     *
-     * @throws Throwable
      */
-    public function testLoadPublicKey(): void
+    public function testCreatePublicKey(): void
     {
         $key = Key::createFromKey($this->publicKey);
         $this->assertNull($key->getPrivateKey());
@@ -115,8 +142,6 @@ class KeyTest extends TestCase
      * @param Key $key
      *
      * @return string
-     *
-     * @throws Throwable
      */
     private function extractPublicKeyFromPrivateKey(Key $key): string
     {
@@ -135,8 +160,6 @@ class KeyTest extends TestCase
      * @param Key $key
      *
      * @return string
-     *
-     * @throws Throwable
      */
     private function extractPublicKeyFromPublicKey(Key $key): string
     {
