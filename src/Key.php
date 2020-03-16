@@ -11,8 +11,8 @@ use FG\ASN1\Universal\Integer;
 use FG\ASN1\Universal\ObjectIdentifier;
 use FG\ASN1\Universal\OctetString;
 use FG\ASN1\Universal\Sequence;
+use Free2er\Ed25519\Exception\KeyException;
 use Throwable;
-use UnexpectedValueException;
 
 /**
  * Ключ
@@ -30,82 +30,101 @@ class Key
     private const PEM = "/^-----BEGIN (PUBLIC|PRIVATE) KEY-----\n(.+)\n-----END (PUBLIC|PRIVATE) KEY-----\n$/";
 
     /**
-     * Закрытый ключ
-     *
-     * @var string|null
-     */
-    private $privateKey;
-
-    /**
      * Открытый ключ
      *
      * @var string
      */
-    private $publicKey;
+    private string $publicKey;
+
+    /**
+     * Закрытый ключ
+     *
+     * @var string|null
+     */
+    private ?string $privateKey;
 
     /**
      * Формирует закрытый ключ
      *
      * @return static
+     *
+     * @throws KeyException
      */
     public static function generate(): self
     {
-        $keyPair = sodium_crypto_sign_keypair();
-
-        return static::privateKeyFromSodiumKeyPair($keyPair);
+        try {
+            return static::privateKeyFromKeyPair(sodium_crypto_sign_keypair());
+        } catch (Throwable $exception) {
+            throw new KeyException('Unable to generate sodium key', $exception);
+        }
     }
 
     /**
-     * Загружает ключ из файла
+     * Создает ключ из файла
      *
      * @param string $file
      *
-     * @return static|null
+     * @return static
+     *
+     * @throws KeyException
      */
-    public static function loadFromFile(string $file): ?self
+    public static function createFromKeyFile(string $file): self
     {
-        $key = is_file($file) && is_readable($file) ? file_get_contents($file) : null;
+        if ($key = file_get_contents($file)) {
+            return static::createFromKey($key);
+        }
 
-        return $key ? static::load($key) : null;
+        throw new KeyException(sprintf('Unable to load the key from file "%s"', $file));
     }
 
     /**
-     * Загружает ключ
+     * Создает ключ
      *
      * @param string $key
      *
-     * @return static|null
+     * @return static
+     *
+     * @throws KeyException
      */
-    public static function load(string $key): ?self
+    public static function createFromKey(string $key): self
     {
-        if (!preg_match(static::PEM, $key, $match)) {
-            return null;
+        if (preg_match(static::PEM, $key, $match)) {
+            $key = $match[2];
         }
 
-        if (!$binary = base64_decode($match[2])) {
-            return null;
+        $key = base64_decode($key) ?: $key;
+
+        $exception = null;
+        $factories = [
+            fn ($key) => static::publicKey($key),
+            fn ($key) => static::privateKey($key),
+        ];
+
+        foreach ($factories as $factory) {
+            try {
+                return $factory($key);
+            } catch (Throwable $exception) {
+                continue;
+            }
         }
 
-        try {
-            return $match[1] === 'PUBLIC' ? static::publicKey($binary) : static::privateKey($binary);
-        } catch (Throwable $exception) {
-            return null;
-        }
+        throw new KeyException('Unsupported key type', $exception);
     }
 
     /**
      * Создает открытый ключ
      *
-     * @param string $binary
+     * @param string $data
      *
      * @return static
      *
      * @throws Throwable
      */
-    private static function publicKey(string $binary): self
+    private static function publicKey(string $data): self
     {
         $parser = new TemplateParser();
-        $asn1   = $parser->parseBinary($binary, [
+
+        $asn1 = $parser->parseBinary($data, [
             Identifier::SEQUENCE => [
                 Identifier::SEQUENCE => [Identifier::OBJECT_IDENTIFIER],
                 Identifier::BITSTRING,
@@ -123,16 +142,17 @@ class Key
     /**
      * Создает закрытый ключ
      *
-     * @param string $binary
+     * @param string $data
      *
      * @return static
      *
      * @throws Throwable
      */
-    private static function privateKey(string $binary): self
+    private static function privateKey(string $data): self
     {
         $parser = new TemplateParser();
-        $asn1   = $parser->parseBinary($binary, [
+
+        $asn1 = $parser->parseBinary($data, [
             Identifier::SEQUENCE => [
                 Identifier::INTEGER,
                 Identifier::SEQUENCE => [Identifier::OBJECT_IDENTIFIER],
@@ -146,7 +166,7 @@ class Key
         $keyPair = $parser->parseBinary($keyPair, [Identifier::OCTETSTRING])->getBinaryContent();
         $keyPair = sodium_crypto_sign_seed_keypair($keyPair);
 
-        return static::privateKeyFromSodiumKeyPair($keyPair);
+        return static::privateKeyFromKeyPair($keyPair);
     }
 
     /**
@@ -156,7 +176,7 @@ class Key
      *
      * @return static
      */
-    private static function privateKeyFromSodiumKeyPair(string $keyPair): self
+    private static function privateKeyFromKeyPair(string $keyPair): self
     {
         $publicKey  = sodium_crypto_sign_publickey($keyPair);
         $secretKey  = sodium_crypto_sign_secretkey($keyPair);
@@ -170,15 +190,13 @@ class Key
      *
      * @param string $oid
      *
-     * @throws UnexpectedValueException
+     * @throws KeyException
      */
     private static function assertOid(string $oid): void
     {
-        if ($oid === static::OID) {
-            return;
+        if ($oid !== static::OID) {
+            throw new KeyException(sprintf('OID must be %s, %s received', static::OID, $oid));
         }
-
-        throw new UnexpectedValueException(sprintf('OID must be %s, %s received', static::OID, $oid));
     }
 
     /**
@@ -228,24 +246,28 @@ class Key
      *
      * @return string
      *
-     * @throws Throwable
+     * @throws KeyException
      */
     public function toPem(): string
     {
-        if ($this->privateKey) {
-            $type = 'PRIVATE';
-            $asn1 = new OctetString(bin2hex($this->privateKey));
-            $asn1 = new Sequence(
-                new Integer(0),
-                new Sequence(new ObjectIdentifier(static::OID)),
-                new OctetString(bin2hex($asn1->getBinary()))
-            );
-        } else {
-            $type = 'PUBLIC';
-            $asn1 = new Sequence(
-                new Sequence(new ObjectIdentifier(static::OID)),
-                new BitString(bin2hex($this->publicKey))
-            );
+        try {
+            if ($this->privateKey) {
+                $type = 'PRIVATE';
+                $asn1 = new OctetString(bin2hex($this->privateKey));
+                $asn1 = new Sequence(
+                    new Integer(0),
+                    new Sequence(new ObjectIdentifier(static::OID)),
+                    new OctetString(bin2hex($asn1->getBinary()))
+                );
+            } else {
+                $type = 'PUBLIC';
+                $asn1 = new Sequence(
+                    new Sequence(new ObjectIdentifier(static::OID)),
+                    new BitString(bin2hex($this->publicKey))
+                );
+            }
+        } catch (Throwable $exception) {
+            throw new KeyException($exception->getMessage(), $exception);
         }
 
         return implode("\n", [

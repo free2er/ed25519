@@ -22,15 +22,17 @@ echo $privateKey->toPem();
 echo $privateKey->toPublic()->toPem();
 ```
 
-Load key from OpenSSL file
+Create key from file
 ```php
 use Free2er\Ed25519\Key;
 
-$privateKey = Key::loadFromFile('/path/to/private.key');
+$privateKey = Key::createFromKeyFile('/path/to/private.key');
+
 echo $privateKey->toPem();
 echo $privateKey->toPublic()->toPem();
 
-$publicKey = Key::loadFromFile('/path/to/public.key');
+$publicKey = Key::createFromKeyFile('/path/to/public.key');
+
 echo $publicKey->toPem();
 ```
 
